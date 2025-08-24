@@ -8,6 +8,7 @@ import {
   Alert,
   ActivityIndicator,
   ImageBackground,
+  Platform,
 } from 'react-native';
 
 import { StatusBar } from 'expo-status-bar';
@@ -347,7 +348,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 60,
+    paddingTop: Platform.OS === 'android' ? 80 : 60,
     paddingBottom: 15,
   },
   headerRight: {

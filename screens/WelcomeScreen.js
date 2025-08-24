@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    marginTop: 60,
+    marginTop: 100,
     marginBottom: 40,
   },
   title: {
@@ -239,7 +239,7 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    paddingBottom: 40,
+    paddingBottom: 80,
     paddingHorizontal: 40,
   },
   button: {

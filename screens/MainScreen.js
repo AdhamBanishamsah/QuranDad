@@ -1,6 +1,7 @@
 import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
+import { Platform } from 'react-native';
 
 import QuranListScreen from './QuranListScreen';
 import DownloadsScreen from './DownloadsScreen';
@@ -31,13 +32,9 @@ const MainScreen = () => {
           backgroundColor: '#1a1a2e',
           borderTopColor: 'rgba(255, 255, 255, 0.1)',
           borderTopWidth: 1,
-          paddingBottom: 15,
+          paddingBottom: Platform.OS === 'android' ? 55 : 25,
           paddingTop: 10,
-          height: 80,
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
+          height: Platform.OS === 'android' ? 120 : 90,
         },
         tabBarLabelStyle: {
           fontSize: 10,

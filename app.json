@@ -4,24 +4,27 @@
     "slug": "Quran",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icons/Assets.xcassets/AppIcon.appiconset/1024.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/icons/Assets.xcassets/AppIcon.appiconset/1024.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
+      "icon": "./assets/icons/Assets.xcassets/AppIcon.appiconset/1024.png",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
-        "NSMicrophoneUsageDescription": "This app needs access to microphone for audio playback controls."
+        "NSMicrophoneUsageDescription": "This app needs access to microphone for audio playback controls.",
+        "NSAppleMusicUsageDescription": "This app needs access to play audio in the background."
       }
     },
     "android": {
+      "icon": "./assets/icons/android/mipmap-xxxhdpi/ic_launcher.png",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/icons/android/mipmap-xxxhdpi/ic_launcher.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -31,7 +34,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icons/Assets.xcassets/AppIcon.appiconset/32.png"
     },
     "plugins": [
       [

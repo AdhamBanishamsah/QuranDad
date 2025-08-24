@@ -13,6 +13,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   ImageBackground,
+  Platform,
 } from 'react-native';
 
 
@@ -32,7 +33,6 @@ import { getRemoteAudioUrl } from '../utils/firebaseConfig';
 import { testFirebaseConnection, testSurahUrl, getUploadStatus } from '../utils/testFirebase';
 import { getReadingMode, saveReadingMode } from '../utils/readingModeStorage';
 import audioManager from '../utils/audioManager';
-import FloatingMediaPlayer from '../components/FloatingMediaPlayer';
 
 // No bundled audio files - all audio will be streamed from Firebase
 
@@ -111,6 +111,29 @@ const QuranListScreen = ({ navigation }) => {
 
     return unsubscribe;
   }, [navigation]);
+
+  // Listen to audio manager state changes for floating player
+  useEffect(() => {
+    const updateAudioState = () => {
+      const currentState = audioManager.getCurrentState();
+      if (currentState) {
+        setCurrentPlayingSurah(currentState.currentSurahId);
+        setIsPlaying(currentState.isPlaying);
+        setCurrentTime(currentState.currentTime || 0);
+        setDuration(currentState.duration || 0);
+      }
+    };
+
+    // Update state immediately
+    updateAudioState();
+
+    // Set up interval to update state
+    const interval = setInterval(updateAudioState, 1000);
+
+    return () => {
+      clearInterval(interval);
+    };
+  }, []);
 
   // Complete list of all 114 surahs
   const surahs = [
@@ -917,7 +940,7 @@ const QuranListScreen = ({ navigation }) => {
     
     // Update audio manager reading mode
     audioManager.setReadingMode(mode);
-    
+    r
     // Save the reading mode for future use
     try {
       await saveReadingMode(mode);
@@ -1161,6 +1184,8 @@ const QuranListScreen = ({ navigation }) => {
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  // Floating player control functions removed - handled by GlobalFloatingPlayer
+
   return (
     <View style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
@@ -1246,22 +1271,7 @@ const QuranListScreen = ({ navigation }) => {
           )}
         </View>
 
-        {/* Floating Media Player */}
-        <FloatingMediaPlayer
-          isVisible={Boolean(currentSurah)}
-          surah={currentSurah}
-          isPlaying={isPlaying}
-          currentTime={currentTime}
-          duration={duration}
-          onPlayPause={handlePlayPause}
-          onSkipForward={handleSkipForward}
-          onSkipBackward={handleSkipBackward}
-          onPress={() => {
-            if (currentSurah) {
-              navigation.navigate('SurahPlayer', { surah: currentSurah });
-            }
-          }}
-        />
+        {/* Floating Media Player - Removed to avoid duplication with GlobalFloatingPlayer */}
 
         {/* Surah List */}
         <View style={styles.listContainer}>
@@ -1307,7 +1317,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 70,
+    paddingTop: Platform.OS === 'android' ? 90 : 70,
     paddingBottom: 20,
   },
   backButton: {

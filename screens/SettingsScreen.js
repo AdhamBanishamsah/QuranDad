@@ -7,6 +7,7 @@ import {
   StatusBar,
   ScrollView,
   ImageBackground,
+  Platform,
 } from 'react-native';
 
 import { Ionicons } from '@expo/vector-icons';
@@ -69,6 +70,24 @@ const SettingsScreen = ({ navigation }) => {
                   </Text>
                 </View>
 
+                <View style={styles.linksContainer}>
+                  <TouchableOpacity 
+                    style={styles.linkItem}
+                    onPress={() => navigation.navigate('AboutDeveloper')}
+                  >
+                    <Ionicons name="person-circle-outline" size={20} color="#e94560" />
+                    <Text style={styles.linkText}>حول المطور</Text>
+                  </TouchableOpacity>
+                  
+                  <TouchableOpacity 
+                    style={styles.linkItem}
+                    onPress={() => navigation.navigate('PrivacyPolicy')}
+                  >
+                    <Ionicons name="shield-checkmark-outline" size={20} color="#e94560" />
+                    <Text style={styles.linkText}>سياسة الخصوصية</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <View style={styles.featuresContainer}>
                   <Text style={styles.featuresTitle}>المميزات:</Text>
                   <View style={styles.featureItem}>
@@ -95,22 +114,7 @@ const SettingsScreen = ({ navigation }) => {
               </View>
             </View>
 
-            {/* Developer Info */}
-            <View style={styles.section}>
-              <View style={styles.sectionHeader}>
-                <Ionicons name="person-outline" size={24} color="#e94560" />
-                <Text style={styles.sectionTitle}>معلومات المطور</Text>
-              </View>
-              
-              <View style={styles.developerCard}>
-                <Text style={styles.developerText}>
-                  تم تطوير هذا التطبيق باستخدام React Native و Expo
-                </Text>
-                <Text style={styles.developerText}>
-                  جميع الملفات الصوتية محفوظة في Firebase Storage
-                </Text>
-              </View>
-            </View>
+     
           </ScrollView>
         </View>
       </ImageBackground>
@@ -137,7 +141,7 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: 20,
-    paddingTop: 70,
+    paddingTop: Platform.OS === 'android' ? 90 : 70,
     paddingBottom: 20,
   },
   backButton: {
@@ -228,6 +232,27 @@ const styles = StyleSheet.create({
     textAlign: 'right',
     lineHeight: 20,
     fontStyle: 'italic',
+  },
+  linksContainer: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255, 255, 255, 0.2)',
+    paddingTop: 15,
+    marginBottom: 20,
+  },
+  linkItem: {
+    flexDirection: 'row-reverse',
+    alignItems: 'center',
+    marginBottom: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: 'rgba(233, 69, 96, 0.1)',
+  },
+  linkText: {
+    fontSize: 14,
+    color: '#e94560',
+    marginRight: 10,
+    fontWeight: '600',
   },
   featuresContainer: {
     borderTopWidth: 1,

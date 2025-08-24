@@ -1,4 +1,5 @@
 import { Audio } from 'expo-av';
+import mediaSessionManager from './mediaSessionManager';
 
 class AudioManager {
   constructor() {
@@ -8,6 +9,9 @@ class AudioManager {
     this.readingMode = 'once'; // 'once', 'repeat', 'continue'
     this.onPlaybackStatusUpdate = null;
     this.onSurahFinished = null; // Callback for when surah finishes
+    
+    // Initialize media session manager
+    mediaSessionManager.initialize();
   }
 
   // Stop current audio and start new surah
@@ -50,6 +54,17 @@ class AudioManager {
         });
       }
 
+      // Update media session for lock screen controls
+      const currentSurah = this.getCurrentSurah();
+      if (currentSurah) {
+        mediaSessionManager.updateMediaSession(
+          currentSurah,
+          true,
+          0,
+          0 // Duration will be updated when playback status is received
+        );
+      }
+
       console.log(`✅ Started playing surah ${surahId}`);
       return sound;
 
@@ -86,6 +101,27 @@ class AudioManager {
   // Get current sound object
   getCurrentSound() {
     return this.currentSound;
+  }
+
+  // Get current surah object (placeholder - you'll need to pass surah data)
+  getCurrentSurah() {
+    // This is a placeholder - in a real implementation, you'd store the surah object
+    // For now, return a basic object with the ID
+    return this.currentSurahId ? {
+      id: this.currentSurahId,
+      arabicNameSimple: `سورة ${this.currentSurahId}`,
+      arabicName: `سورة ${this.currentSurahId}`
+    } : null;
+  }
+
+  // Get current state for floating player
+  getCurrentState() {
+    return {
+      currentSurahId: this.currentSurahId,
+      isPlaying: this.isPlaying,
+      currentTime: this.currentSound ? this.currentSound._lastStatusUpdateEvent?.positionMillis / 1000 : 0,
+      duration: this.currentSound ? this.currentSound._lastStatusUpdateEvent?.durationMillis / 1000 : 0,
+    };
   }
 
   // Pause current audio
@@ -129,6 +165,17 @@ class AudioManager {
   async handlePlaybackStatus(status) {
     if (status.isLoaded) {
       this.isPlaying = status.isPlaying;
+
+      // Update media session for lock screen controls
+      const currentSurah = this.getCurrentSurah();
+      if (currentSurah) {
+        mediaSessionManager.updateMediaSession(
+          currentSurah,
+          status.isPlaying,
+          status.positionMillis / 1000,
+          status.durationMillis / 1000
+        );
+      }
 
       // Handle reading modes when audio finishes
       if (status.didJustFinish || (status.positionMillis >= status.durationMillis && status.isPlaying)) {
