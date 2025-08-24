@@ -26,11 +26,13 @@ import {
   getFirebaseStorageUrl,
   checkIfSurahDownloaded,
   getDownloadedSurahs,
+  cancelCurrentDownload,
 } from '../utils/fileSystem';
 import { getRemoteAudioUrl } from '../utils/firebaseConfig';
 import { testFirebaseConnection, testSurahUrl, getUploadStatus } from '../utils/testFirebase';
 import { getReadingMode, saveReadingMode } from '../utils/readingModeStorage';
 import audioManager from '../utils/audioManager';
+import FloatingMediaPlayer from '../components/FloatingMediaPlayer';
 
 // No bundled audio files - all audio will be streamed from Firebase
 
@@ -46,11 +48,17 @@ const QuranListScreen = ({ navigation }) => {
   const [waveAnimation, setWaveAnimation] = useState(false);
   const [downloadingSurah, setDownloadingSurah] = useState(null);
   const [downloadProgress, setDownloadProgress] = useState(0);
+  const [bulkDownloading, setBulkDownloading] = useState(false);
+  const [bulkDownloadProgress, setBulkDownloadProgress] = useState(0);
   const [networkConnected, setNetworkConnected] = useState(true);
   const [loadingAudio, setLoadingAudio] = useState(false);
   const [downloadedSurahs, setDownloadedSurahs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [readingMode, setReadingMode] = useState('once'); // 'once', 'repeat', 'continue'
+  const [cancelled, setCancelled] = useState(false);
+  
+  // Use ref for immediate cancellation check
+  const cancelledRef = useRef(false);
   
   // Wave animation values
   const wave1Anim = useRef(new Animated.Value(8)).current;
@@ -405,7 +413,7 @@ const QuranListScreen = ({ navigation }) => {
   };
   
   // Perform download function (extracted for reuse)
-  const performDownload = async (surahId, currentSurah) => {
+  const performDownload = async (surahId, currentSurah, showSuccessAlert = true) => {
     try {
       // Set downloading state
       setDownloadingSurah(currentSurah);
@@ -419,14 +427,16 @@ const QuranListScreen = ({ navigation }) => {
         console.log('Got remote URL for download:', downloadUrl);
       } catch (error) {
         console.error('Error getting remote URL:', error);
-        Alert.alert(
-          'خطأ في الاتصال',
-          'تعذر الوصول إلى الملف الصوتي. يرجى التحقق من اتصالك بالإنترنت وإعادة المحاولة.',
-          [{ text: 'حسناً' }]
-        );
+        if (showSuccessAlert) {
+          Alert.alert(
+            'خطأ في الاتصال',
+            'تعذر الوصول إلى الملف الصوتي. يرجى التحقق من اتصالك بالإنترنت وإعادة المحاولة.',
+            [{ text: 'حسناً' }]
+          );
+        }
         setDownloadingSurah(null);
         setDownloadProgress(0);
-        return;
+        throw error;
       }
       
       // Download the file
@@ -444,26 +454,33 @@ const QuranListScreen = ({ navigation }) => {
           // Refresh the downloaded surahs list to update all icons
           refreshDownloadedSurahs();
           
-          Alert.alert(
-            'تم التحميل',
-            `تم تحميل سورة ${currentSurah?.arabicNameSimple} بنجاح.`,
-            [{ text: 'حسناً' }]
-          );
+          if (showSuccessAlert) {
+            Alert.alert(
+              'تم التحميل',
+              `تم تحميل سورة ${currentSurah?.arabicNameSimple} بنجاح.`,
+              [{ text: 'حسناً' }]
+            );
+          }
         },
         (error) => {
           setDownloadingSurah(null);
           setDownloadProgress(0);
-          Alert.alert(
-            'خطأ في التحميل',
-            `حدث خطأ أثناء تحميل سورة ${currentSurah?.arabicNameSimple}.`,
-            [{ text: 'حسناً' }]
-          );
+          
+          if (showSuccessAlert) {
+            Alert.alert(
+              'خطأ في التحميل',
+              `حدث خطأ أثناء تحميل سورة ${currentSurah?.arabicNameSimple}.`,
+              [{ text: 'حسناً' }]
+            );
+          }
+          throw error;
         }
       );
     } catch (error) {
       console.log('Error in performDownload:', error);
       setDownloadingSurah(null);
       setDownloadProgress(0);
+      throw error;
     }
   };
 
@@ -508,6 +525,338 @@ const QuranListScreen = ({ navigation }) => {
       setDownloadingSurah(null);
       setDownloadProgress(0);
     }
+  };
+
+  // Check which surahs are available for download (optimized)
+  const checkAvailableSurahs = async () => {
+    const availableSurahs = [];
+    const unavailableSurahs = [];
+    
+    // Only check first 10 surahs to determine pattern, then estimate
+    const sampleSize = 10;
+    const timeout = 5000; // 5 seconds timeout per check
+    
+    // Check a sample of surahs first
+    let availableCount = 0;
+    let totalChecked = 0;
+    
+    for (let i = 1; i <= sampleSize; i++) {
+      const surah = surahs.find(s => s.id === i);
+      if (surah && !downloadedSurahs.includes(i)) {
+        totalChecked++;
+        try {
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Timeout')), timeout)
+          );
+          
+          const urlPromise = getFirebaseStorageUrl(i);
+          await Promise.race([urlPromise, timeoutPromise]);
+          
+          availableCount++;
+          availableSurahs.push(surah);
+          console.log(`✅ Sample surah ${i} available`);
+        } catch (error) {
+          console.log(`❌ Sample surah ${i} not available:`, error.message);
+          unavailableSurahs.push(surah);
+        }
+      }
+    }
+    
+    // If we have a good sample, estimate the rest
+    if (totalChecked > 0) {
+      const availabilityRate = availableCount / totalChecked;
+      console.log(`📊 Availability rate: ${(availabilityRate * 100).toFixed(1)}%`);
+      
+      // Estimate remaining surahs based on sample
+      for (let i = sampleSize + 1; i <= 114; i++) {
+        const surah = surahs.find(s => s.id === i);
+        if (surah && !downloadedSurahs.includes(i)) {
+          if (availabilityRate > 0.5) {
+            // If more than 50% are available, assume this one is too
+            availableSurahs.push(surah);
+          } else {
+            // If less than 50% are available, assume this one isn't
+            unavailableSurahs.push(surah);
+          }
+        }
+      }
+    }
+    
+    console.log(`📊 Quick check complete: ${availableSurahs.length} estimated available, ${unavailableSurahs.length} estimated unavailable`);
+    return { availableSurahs, unavailableSurahs };
+  };
+
+  // Check WiFi connection
+  const checkWiFiConnection = async () => {
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      
+      const response = await fetch('https://www.google.com', { 
+        method: 'HEAD',
+        signal: controller.signal
+      });
+      
+      clearTimeout(timeoutId);
+      return true;
+    } catch (error) {
+      console.log('WiFi check failed:', error.message);
+      return false;
+    }
+  };
+
+  // Download all available surahs
+  const downloadAllAvailableSurahs = async () => {
+    try {
+      // Show checking phase
+      setLoading(true);
+      
+      // Check network connectivity first
+      const isConnected = await checkNetwork();
+      if (!isConnected) {
+        setLoading(false);
+        Alert.alert(
+          'غير متصل بالإنترنت',
+          'يرجى التحقق من اتصالك بالإنترنت وإعادة المحاولة.',
+          [{ text: 'حسناً' }]
+        );
+        return;
+      }
+
+      // Check WiFi connection with timeout
+      try {
+        const isWiFi = await checkWiFiConnection();
+        if (!isWiFi) {
+          setLoading(false);
+          Alert.alert(
+            'تحذير: استخدام البيانات الخلوية',
+            'أنت غير متصل بشبكة WiFi. التحميل سيستخدم بيانات الجوال.\n\nهل تريد المتابعة؟',
+            [
+              { text: 'إلغاء', style: 'cancel' },
+              { text: 'متابعة', onPress: () => startDownloadProcess() }
+            ]
+          );
+          return;
+        }
+      } catch (error) {
+        console.log('WiFi check failed, proceeding anyway:', error);
+        // Continue even if WiFi check fails
+      }
+
+      // Ask user for checking preference
+      Alert.alert(
+        'خيارات التحميل',
+        'اختر طريقة التحميل:',
+        [
+          { text: 'إلغاء', style: 'cancel' },
+          { 
+            text: 'فحص سريع (10 ثواني)', 
+            onPress: () => startDownloadProcess()
+          },
+          { 
+            text: 'تحميل مباشر', 
+            onPress: () => startDirectDownload()
+          }
+        ]
+      );
+      
+      setLoading(false);
+      
+    } catch (error) {
+      setLoading(false);
+      console.log('Error in downloadAllAvailableSurahs:', error);
+      Alert.alert('خطأ', 'حدث خطأ أثناء فحص الاتصال');
+    }
+  };
+
+  // Start direct download without checking
+  const startDirectDownload = async () => {
+    try {
+      // Get all surahs that aren't downloaded yet
+      const undownloadedSurahs = surahs.filter(surah => !downloadedSurahs.includes(surah.id));
+      
+      if (undownloadedSurahs.length === 0) {
+        Alert.alert(
+          'لا توجد سور للتحميل',
+          'جميع السور محملة مسبقاً.',
+          [{ text: 'حسناً' }]
+        );
+        return;
+      }
+      
+      Alert.alert(
+        'تحميل مباشر',
+        `سيتم محاولة تحميل ${undownloadedSurahs.length} سورة.\n\nسيتم تجاهل السور غير المتاحة تلقائياً.`,
+        [
+          { text: 'إلغاء', style: 'cancel' },
+          { 
+            text: 'بدء التحميل', 
+            onPress: () => executeBulkDownload(undownloadedSurahs)
+          }
+        ]
+      );
+    } catch (error) {
+      console.log('Error in startDirectDownload:', error);
+      Alert.alert('خطأ', 'حدث خطأ أثناء بدء التحميل المباشر');
+    }
+  };
+
+  // Start the actual download process
+  const startDownloadProcess = async () => {
+    try {
+      // Add overall timeout for the entire process
+      const processTimeout = setTimeout(() => {
+        setLoading(false);
+        Alert.alert(
+          'انتهت مهلة الفحص',
+          'استغرق الفحص وقتاً طويلاً. يرجى المحاولة مرة أخرى.',
+          [{ text: 'حسناً' }]
+        );
+      }, 15000); // 15 seconds timeout (reduced from 30)
+
+      // Check which surahs are available
+      const { availableSurahs, unavailableSurahs } = await checkAvailableSurahs();
+      
+      clearTimeout(processTimeout);
+      
+      if (availableSurahs.length === 0) {
+        setLoading(false);
+        Alert.alert(
+          'لا توجد سور متاحة',
+          'جميع السور إما محملة مسبقاً أو غير متاحة للتحميل.',
+          [{ text: 'حسناً' }]
+        );
+        return;
+      }
+      
+      // Show summary before starting download
+      let message = `سيتم تحميل ${availableSurahs.length} سورة متاحة.\n\n`;
+      if (unavailableSurahs.length > 0) {
+        message += `${unavailableSurahs.length} سورة غير متاحة للتحميل.\n\n`;
+      }
+      message += 'ملاحظة: تم فحص عينة من السور لتسريع العملية.\n\nهل تريد المتابعة؟';
+      
+      Alert.alert(
+        'ملخص التحميل',
+        message,
+        [
+          { text: 'إلغاء', style: 'cancel' },
+          { 
+            text: 'تحميل المتاح', 
+            onPress: () => executeBulkDownload(availableSurahs)
+          }
+        ]
+      );
+      
+      setLoading(false);
+    } catch (error) {
+      setLoading(false);
+      console.log('Error in startDownloadProcess:', error);
+      Alert.alert('خطأ', 'حدث خطأ أثناء فحص السور المتاحة');
+    }
+  };
+
+  // Execute bulk download with progress tracking
+  const executeBulkDownload = async (availableSurahs) => {
+    let successCount = 0;
+    let failedCount = 0;
+    let currentIndex = 0;
+    let totalSurahs = availableSurahs.length;
+    
+    // Reset cancellation flag (both state and ref)
+    setCancelled(false);
+    cancelledRef.current = false;
+    
+    // Set bulk download state
+    setBulkDownloading(true);
+    setBulkDownloadProgress(0);
+    
+    // Show start message with cancel option
+    Alert.alert(
+      'تم بدء التحميل',
+      `سيتم تحميل ${totalSurahs} سورة.\n\nستظهر أيقونة التحميل ⏳ بجانب كل سورة أثناء تحميلها.\n\nيمكنك إلغاء العملية بالضغط على زر "إلغاء الكل".`,
+      [{ text: 'حسناً' }]
+    );
+
+    for (let i = 0; i < availableSurahs.length; i++) {
+      // Check if bulk download was cancelled (using ref for immediate check)
+      if (cancelledRef.current) {
+        console.log('Bulk download cancelled by user');
+        break;
+      }
+      
+      const surah = availableSurahs[i];
+      currentIndex = i + 1;
+      
+      // Update bulk download progress
+      const progress = Math.floor((currentIndex / totalSurahs) * 100);
+      setBulkDownloadProgress(progress);
+      
+      try {
+        // Set current downloading surah to show progress
+        setDownloadingSurah(surah);
+        setDownloadProgress(0);
+        
+        // Download the surah (silent mode for bulk download)
+        await performDownload(surah.id, surah, false);
+        successCount++;
+        
+        // Small delay between downloads
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (error) {
+        console.log(`Failed to download surah ${surah.id}:`, error);
+        failedCount++;
+      }
+    }
+    
+    // Clear all downloading states
+    setDownloadingSurah(null);
+    setDownloadProgress(0);
+    setBulkDownloading(false);
+    setBulkDownloadProgress(0);
+    
+    // Show final summary
+    let resultMessage = `تم تحميل ${successCount} سورة بنجاح.`;
+    if (failedCount > 0) {
+      resultMessage += `\nفشل تحميل ${failedCount} سورة.`;
+    }
+    if (cancelledRef.current) {
+      resultMessage += `\nتم إلغاء العملية.`;
+    }
+    
+    Alert.alert('تم التحميل', resultMessage, [{ text: 'حسناً' }]);
+  };
+
+  // Cancel all downloads
+  const cancelAllDownloads = async () => {
+    Alert.alert(
+      'إلغاء التحميل',
+      'هل تريد إلغاء جميع التحميلات الجارية؟',
+      [
+        { text: 'لا', style: 'cancel' },
+        { 
+          text: 'نعم، إلغاء الكل', 
+          style: 'destructive',
+          onPress: async () => {
+            // Set cancellation flag (both state and ref)
+            setCancelled(true);
+            cancelledRef.current = true;
+            
+            // Cancel the current download
+            await cancelCurrentDownload();
+            
+            // Clear all download states
+            setDownloadingSurah(null);
+            setDownloadProgress(0);
+            setBulkDownloading(false);
+            setBulkDownloadProgress(0);
+            
+            Alert.alert('تم الإلغاء', 'تم إلغاء جميع التحميلات.');
+          }
+        }
+      ]
+    );
   };
 
   const onPlaybackStatusUpdate = (status) => {
@@ -700,24 +1049,24 @@ const QuranListScreen = ({ navigation }) => {
     
     return (
       <TouchableOpacity
-        style={[styles.surahCard, isPlaying && styles.playingCard]}
+        style={[styles.surahCard, Boolean(isPlaying) && styles.playingCard]}
         onPress={() => handleSurahPress(item)}
         onLongPress={() => handleSurahLongPress(item)}
-        disabled={isDownloading}
+        disabled={Boolean(isDownloading)}
       >
-        <View style={[styles.cardGradient, isPlaying && styles.playingCardGradient]}>
+                  <View style={[styles.cardGradient, Boolean(isPlaying) && styles.playingCardGradient]}>
           <View style={styles.cardContent}>
             {/* Left Section - Metadata */}
             <View style={styles.leftSection}>
-              <View style={[styles.typeTag, isPlaying && styles.playingTag]}>
-                <Text style={[styles.typeText, isPlaying && styles.playingTagText]}>
+              <View style={[styles.typeTag, Boolean(isPlaying) && styles.playingTag]}>
+                <Text style={[styles.typeText, Boolean(isPlaying) && styles.playingTagText]}>
                   {item.arabicType}
                 </Text>
               </View>
-              <Text style={[styles.versesText, isPlaying && styles.playingText]}>
+              <Text style={[styles.versesText, Boolean(isPlaying) && styles.playingText]}>
                 {item.verses} آية
               </Text>
-              <Text style={[styles.durationText, isPlaying && styles.playingText]}>
+              <Text style={[styles.durationText, Boolean(isPlaying) && styles.playingText]}>
                 {item.duration}
               </Text>
             </View>
@@ -725,10 +1074,10 @@ const QuranListScreen = ({ navigation }) => {
             {/* Center Section - Surah Names */}
             <View style={styles.centerSection}>
               <View style={styles.surahInfo}>
-                <Text style={[styles.surahName, isPlaying && styles.playingText]}>
+                <Text style={[styles.surahName, Boolean(isPlaying) && styles.playingText]}>
                   {item.arabicName}
                 </Text>
-                <Text style={[styles.surahNameSimple, isPlaying && styles.playingText]}>
+                <Text style={[styles.surahNameSimple, Boolean(isPlaying) && styles.playingText]}>
                   {item.arabicNameSimple}
                 </Text>
               </View>
@@ -736,17 +1085,42 @@ const QuranListScreen = ({ navigation }) => {
             
             {/* Right Section - Surah Number and Download Icon */}
             <View style={styles.rightSection}>
-              {isDownloading ? (
-                <View style={styles.downloadingBadge}>
-                  <Text style={styles.downloadingText}>⏳</Text>
-                </View>
+              {Boolean(isDownloading) ? (
+                <>
+                  <View style={styles.downloadingBadge}>
+                    <Text style={styles.downloadingText}>⏳</Text>
+                  </View>
+                  
+                  {/* Cancel Download Button */}
+                  <TouchableOpacity
+                    style={styles.cancelDownloadButton}
+                    onPress={async (e) => {
+                      e.stopPropagation();
+                      
+                      // Set cancellation flag (both state and ref)
+                      setCancelled(true);
+                      cancelledRef.current = true;
+                      
+                      // Cancel the current download
+                      await cancelCurrentDownload();
+                      
+                      // Clear download states
+                      setDownloadingSurah(null);
+                      setDownloadProgress(0);
+                      
+                      Alert.alert('تم الإلغاء', 'تم إلغاء تحميل السورة.');
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#ff6b6b" />
+                  </TouchableOpacity>
+                </>
               ) : (
                 <>
-                  <View style={[styles.numberBadge, isPlaying && styles.playingBadge]}>
-                    <Text style={[styles.numberText, isPlaying && styles.playingNumberText]}>
+                  <View style={[styles.numberBadge, Boolean(isPlaying) && styles.playingBadge]}>
+                                          <Text style={[styles.numberText, Boolean(isPlaying) && styles.playingNumberText]}>
                       {item.id}
                     </Text>
-                    {isDownloaded && (
+                    {Boolean(isDownloaded) && (
                       <View style={styles.downloadedIndicator}>
                         <Ionicons name="cloud-done" size={12} color="#4CAF50" />
                       </View>
@@ -760,11 +1134,11 @@ const QuranListScreen = ({ navigation }) => {
                       e.stopPropagation();
                       downloadSurahAudio(item.id);
                     }}
-                    disabled={isDownloaded}
+                    disabled={Boolean(isDownloaded)}
                   >
                     <Ionicons 
                       name={isDownloaded ? "cloud-done" : "cloud-download-outline"} 
-                      size={16} 
+                      size={20} 
                       color={isDownloaded ? "#4CAF50" : "#ffffff"} 
                     />
                   </TouchableOpacity>
@@ -816,149 +1190,78 @@ const QuranListScreen = ({ navigation }) => {
           />
         </View>
 
-        {/* Download All Button */}
+        {/* Download All Container - Always Visible */}
         <View style={styles.downloadAllContainer}>
+          {/* Main Button - Changes based on state */}
           <TouchableOpacity 
-            style={styles.downloadAllButton}
-            onPress={async () => {
-              try {
-                const isConnected = await checkNetwork();
-                if (!isConnected) {
-                  Alert.alert('خطأ في الاتصال', 'يرجى التحقق من اتصال الإنترنت لتحميل جميع السور');
-                  return;
-                }
-                
-                Alert.alert(
-                  'تحميل جميع السور',
-                  'هل تريد تحميل جميع السور؟ هذا قد يستغرق وقتاً طويلاً ويستهلك مساحة كبيرة.',
-                  [
-                    { text: 'إلغاء', style: 'cancel' },
-                    { 
-                      text: 'تحميل الكل', 
-                      onPress: async () => {
-                        // Download all surahs one by one
-                        for (let i = 1; i <= 114; i++) {
-                          const surah = surahs.find(s => s.id === i);
-                          if (surah && !downloadedSurahs.includes(i)) {
-                            await performDownload(i, surah);
-                            // Small delay between downloads
-                            await new Promise(resolve => setTimeout(resolve, 1000));
-                          }
-                        }
-                        Alert.alert('تم التحميل', 'تم تحميل جميع السور بنجاح!');
-                      }
-                    }
-                  ]
-                );
-              } catch (error) {
-                Alert.alert('خطأ', 'حدث خطأ أثناء تحميل جميع السور');
-              }
-            }}
+            style={[
+              styles.buttonGradient,
+              Boolean(bulkDownloading) && styles.cancelAllButton
+            ]}
+            onPress={Boolean(bulkDownloading) ? cancelAllDownloads : downloadAllAvailableSurahs}
+            disabled={Boolean(loading) || (Boolean(downloadingSurah) && !Boolean(bulkDownloading))}
           >
-            <Ionicons name="download-outline" size={20} color="#ffffff" />
-            <Text style={styles.downloadAllText}>تحميل جميع السور</Text>
+            <Text style={[
+              styles.downloadAllText,
+              Boolean(bulkDownloading) && styles.cancelAllText
+            ]}>
+              {loading ? 'جاري الفحص...' : 
+               Boolean(bulkDownloading) ? 'إلغاء الكل' : 
+               Boolean(downloadingSurah) ? 'جاري التحميل...' : 
+               'تحميل الكل'}
+            </Text>
           </TouchableOpacity>
+          
+          {/* Progress Indicator - Always visible when downloading */}
+          {(Boolean(downloadingSurah) || Boolean(bulkDownloading)) && (
+            <View style={[
+              styles.progressIndicator,
+              Boolean(bulkDownloading) && styles.bulkProgressIndicator
+            ]}>
+              <Text style={[
+                styles.progressText,
+                Boolean(bulkDownloading) && styles.bulkProgressText
+              ]}>
+                {Boolean(bulkDownloading) 
+                  ? `جاري تحميل جميع السور: ${bulkDownloadProgress}%`
+                  : `جاري تحميل: ${downloadingSurah?.arabicNameSimple}`
+                }
+              </Text>
+              <View style={styles.progressBarContainer}>
+                <View style={[
+                  styles.progressBar, 
+                  { width: `${Boolean(bulkDownloading) ? bulkDownloadProgress : downloadProgress}%` }
+                ]} />
+              </View>
+              <Text style={[
+                styles.progressPercentage,
+                Boolean(bulkDownloading) && styles.currentSurahText
+              ]}>
+                {Boolean(bulkDownloading) && Boolean(downloadingSurah)
+                  ? `الحالي: ${downloadingSurah.arabicNameSimple} (${downloadProgress}%)`
+                  : `${Boolean(bulkDownloading) ? bulkDownloadProgress : downloadProgress}%`
+                }
+              </Text>
+            </View>
+          )}
         </View>
 
-        {/* Currently Playing Section */}
-        {currentSurah && (
-          <View style={styles.currentPlayingContainer}>
-            <View style={styles.currentPlayingCard}>
-              {/* Compact Header */}
-              <View style={styles.playingHeader}>
-                <Text style={styles.currentPlayingTitle}>{currentSurah.arabicName}</Text>
-                <Text style={styles.currentPlayingSubtitle}>{currentSurah.arabicNameSimple}</Text>
-              </View>
-              
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <View style={styles.audioProgressBar}>
-                  <View style={[styles.progressFill, { width: `${progressPercentage}%` }]} />
-                </View>
-                <View style={styles.timeContainer}>
-                  <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-                  <Text style={styles.timeText}>{formatTime(duration)}</Text>
-                </View>
-              </View>
-
-              {/* Controls */}
-              <View style={styles.controlsContainer}>
-                <TouchableOpacity style={styles.controlButton} onPress={handleSkipBackward}>
-                  <Ionicons name="play-skip-back" size={20} color="#ffffff" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
-                  <Ionicons name={isPlaying ? "pause" : "play"} size={24} color="#ffffff" />
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.controlButton} onPress={handleSkipForward}>
-                  <Ionicons name="play-skip-forward" size={20} color="#ffffff" />
-                </TouchableOpacity>
-              </View>
-
-              {/* Reading Mode Selector */}
-              <View style={styles.readingModeContainer}>
-                <View style={styles.readingModeHeader}>
-                  <Text style={styles.readingModeLabel}>وضع القراءة:</Text>
-                  <View style={styles.currentModeIndicator}>
-                    <Text style={styles.currentModeText}>
-                      {readingMode === 'once' ? 'مرة واحدة' : 
-                       readingMode === 'repeat' ? 'تكرار' : 'متابعة'}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.readingModeButtons}>
-                  <TouchableOpacity 
-                    style={[styles.readingModeButton, readingMode === 'once' && styles.readingModeActive]}
-                    onPress={() => handleReadingModeChange('once')}
-                  >
-                    <Text style={[styles.readingModeText, readingMode === 'once' && styles.readingModeTextActive]}>
-                      مرة واحدة
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.readingModeButton, readingMode === 'repeat' && styles.readingModeActive]}
-                    onPress={() => handleReadingModeChange('repeat')}
-                  >
-                    <Text style={[styles.readingModeText, readingMode === 'repeat' && styles.readingModeTextActive]}>
-                      تكرار
-                    </Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity 
-                    style={[styles.readingModeButton, readingMode === 'continue' && styles.readingModeActive]}
-                    onPress={() => handleReadingModeChange('continue')}
-                  >
-                    <Text style={[styles.readingModeText, readingMode === 'continue' && styles.readingModeTextActive]}>
-                      متابعة
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {/* Wave Animation */}
-              {isPlaying && (
-                <View style={styles.waveContainer}>
-                  <Animated.View style={[styles.wave, { height: wave1Anim }]} />
-                  <Animated.View style={[styles.wave, { height: wave2Anim }]} />
-                  <Animated.View style={[styles.wave, { height: wave3Anim }]} />
-                  <Animated.View style={[styles.wave, { height: wave4Anim }]} />
-                  <Animated.View style={[styles.wave, { height: wave5Anim }]} />
-                </View>
-              )}
-
-              {/* Download Progress */}
-              {downloadingSurah && (
-                <View style={styles.downloadContainer}>
-                  <Text style={styles.downloadText}>
-                    جاري تحميل: {downloadingSurah.arabicNameSimple}
-                  </Text>
-                  <View style={styles.progressBarContainer}>
-                    <View style={[styles.downloadProgressBar, { width: `${downloadProgress}%` }]} />
-                  </View>
-                  <Text style={styles.progressText}>{downloadProgress}%</Text>
-                </View>
-              )}
-            </View>
-          </View>
-        )}
+        {/* Floating Media Player */}
+        <FloatingMediaPlayer
+          isVisible={Boolean(currentSurah)}
+          surah={currentSurah}
+          isPlaying={isPlaying}
+          currentTime={currentTime}
+          duration={duration}
+          onPlayPause={handlePlayPause}
+          onSkipForward={handleSkipForward}
+          onSkipBackward={handleSkipBackward}
+          onPress={() => {
+            if (currentSurah) {
+              navigation.navigate('SurahPlayer', { surah: currentSurah });
+            }
+          }}
+        />
 
         {/* Surah List */}
         <View style={styles.listContainer}>
@@ -1056,27 +1359,42 @@ const styles = StyleSheet.create({
     marginLeft: 10,
   },
   downloadAllContainer: {
-    paddingHorizontal: 20,
-    marginBottom: 20,
-  },
-  downloadAllButton: {
-    flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(233, 69, 96, 0.2)',
-    borderRadius: 15,
-    paddingVertical: 15,
-    paddingHorizontal: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(233, 69, 96, 0.4)',
+    marginLeft: 20,
+    marginBottom: 10,
   },
   downloadAllText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 13,
+    fontWeight: '600',
     color: '#ffffff',
-    marginLeft: 10,
     textAlign: 'center',
+    textShadowColor: 'rgba(0, 0, 0, 0.6)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+    flexWrap: 'nowrap',
   },
+
+  buttonGradient: {
+    paddingVertical: 8,
+    paddingHorizontal: 25,
+    width: 160,
+    alignSelf: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e94560',
+    borderRadius: 30,
+    marginBottom: 20,
+    backgroundColor: '#e94560',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+
+
+  
   currentPlayingContainer: {
     paddingHorizontal: 20,
     marginBottom: 15,
@@ -1208,27 +1526,7 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontWeight: 'bold',
   },
-  volumeContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  volumeBar: {
-    flex: 1,
-    height: 3,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    borderRadius: 2,
-    marginRight: 10,
-  },
-  volumeFill: {
-    height: '100%',
-    backgroundColor: '#e94560',
-    borderRadius: 2,
-    width: '70%',
-  },
-  volumeIcon: {
-    fontSize: 16,
-    color: 'rgba(255, 255, 255, 0.8)',
-  },
+
   waveContainer: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1250,6 +1548,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderWidth: 1,
     borderColor: 'rgba(233, 69, 96, 0.3)',
+    
   },
   downloadText: {
     color: '#ffffff',
@@ -1257,6 +1556,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginBottom: 15,
     textAlign: 'center',
+    width: 300,
   },
   progressBarContainer: {
     width: '100%',
@@ -1291,20 +1591,7 @@ const styles = StyleSheet.create({
     color: '#ffc107',
   },
 
-  listContainer: {
-    flex: 1,
-    paddingHorizontal: 20,
-  },
-  listTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#ffffff',
-    marginBottom: 15,
-    textAlign: 'right',
-  },
-  listContent: {
-    paddingBottom: 20,
-  },
+
   surahCard: {
     marginBottom: 12,
     borderRadius: 15,
@@ -1427,25 +1714,111 @@ const styles = StyleSheet.create({
     paddingBottom: 100,
   },
   downloadIconButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(26, 26, 46, 0.9)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
-  downloadAllButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+  cancelDownloadButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: 'rgba(255, 107, 107, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
     borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 3,
+    elevation: 4,
   },
+  progressIndicator: {
+    marginTop: 10,
+    padding: 15,
+    backgroundColor: 'rgba(233, 69, 96, 0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(233, 69, 96, 0.3)',
+  },
+  progressText: {
+    fontSize: 14,
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  progressBarContainer: {
+    height: 6,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    borderRadius: 3,
+    marginBottom: 5,
+  },
+  progressBar: {
+    height: '100%',
+    backgroundColor: '#e94560',
+    borderRadius: 3,
+  },
+  progressPercentage: {
+    fontSize: 12,
+    color: '#e94560',
+    textAlign: 'center',
+    fontWeight: '600',
+  },
+  cancelAllButton: {
+    backgroundColor: '#ff6b6b',
+    paddingVertical: 12,
+    paddingHorizontal: 30,
+    borderRadius: 25,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  cancelAllText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#ffffff',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  bulkProgressIndicator: {
+    marginTop: 10,
+    padding: 15,
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 107, 107, 0.3)',
+  },
+  bulkProgressText: {
+    fontSize: 16,
+    color: '#ffffff',
+    textAlign: 'center',
+    marginBottom: 8,
+    fontWeight: '600',
+  },
+  currentSurahText: {
+    fontSize: 12,
+    color: '#ff6b6b',
+    textAlign: 'center',
+    marginTop: 5,
+    fontWeight: '500',
+  },
+
 
 });
 

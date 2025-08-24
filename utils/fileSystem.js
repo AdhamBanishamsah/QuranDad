@@ -57,7 +57,10 @@ export const getFirebaseStorageUrl = async (surahId) => {
   }
 };
 
-// Download a surah with progress tracking
+// Global variable to store current download resumable
+let currentDownloadResumable = null;
+
+// Download a surah with progress tracking and cancellation support
 export const downloadSurah = async (surahId, url, onProgress, onComplete, onError) => {
   try {
     // Check network connectivity first
@@ -97,7 +100,14 @@ export const downloadSurah = async (surahId, url, onProgress, onComplete, onErro
       }
     );
     
+    // Store the current download resumable for cancellation
+    currentDownloadResumable = downloadResumable;
+    
     const result = await downloadResumable.downloadAsync();
+    
+    // Clear the current download resumable
+    currentDownloadResumable = null;
+    
     if (result && result.uri) {
       onComplete && onComplete(result.uri);
       return result.uri;
@@ -105,10 +115,28 @@ export const downloadSurah = async (surahId, url, onProgress, onComplete, onErro
     
     return null;
   } catch (error) {
+    // Clear the current download resumable on error
+    currentDownloadResumable = null;
     console.error('Error downloading surah:', error);
     onError && onError(error);
     return null;
   }
+};
+
+// Cancel current download
+export const cancelCurrentDownload = async () => {
+  if (currentDownloadResumable) {
+    try {
+      await currentDownloadResumable.cancelAsync();
+      currentDownloadResumable = null;
+      return true;
+    } catch (error) {
+      console.error('Error cancelling download:', error);
+      currentDownloadResumable = null;
+      return false;
+    }
+  }
+  return false;
 };
 
 // Delete a downloaded surah

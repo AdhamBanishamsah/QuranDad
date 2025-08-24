@@ -8,6 +8,7 @@ import audioManager from './utils/audioManager';
 import WelcomeScreen from './screens/WelcomeScreen';
 import MainScreen from './screens/MainScreen';
 import SurahPlayerScreen from './screens/SurahPlayerScreen';
+import GlobalFloatingPlayer from './components/GlobalFloatingPlayer';
 
 const Stack = createStackNavigator();
 
@@ -34,6 +35,7 @@ export default function App() {
           <Stack.Screen name="Main" component={MainScreen} />
           <Stack.Screen name="SurahPlayer" component={SurahPlayerScreen} />
         </Stack.Navigator>
+        <GlobalFloatingPlayer />
       </NavigationContainer>
     </SafeAreaProvider>
   );
