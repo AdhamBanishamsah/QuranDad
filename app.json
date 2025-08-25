@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.adhambanishamsah.qurannizam",
-      "buildNumber": "3",
+      "buildNumber": "5",
       "icon": "./assets/icons/Assets.xcassets/AppIcon.appiconset/1024.png",
       "infoPlist": {
         "UIBackgroundModes": [
@@ -37,7 +37,7 @@
         "CFBundleDisplayName": "القرآن بصوت نظام بني شمسة",
         "CFBundleName": "Quran by Nizam",
         "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "3",
+        "CFBundleVersion": "5",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
