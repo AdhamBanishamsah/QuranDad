@@ -1,4 +1,5 @@
-import { getFirebaseStorageUrl, checkNetworkConnectivity } from './fileSystem';
+import { checkNetworkConnectivity } from './fileSystem';
+import { getFirebaseStorageUrl } from './firebaseConfig';
 import { storage } from './firebaseConfig';
 import { ref, listAll, getDownloadURL } from 'firebase/storage';
 

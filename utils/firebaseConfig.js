@@ -53,10 +53,23 @@ export const getRemoteAudioUrl = (surahId) => {
   return url;
 };
 
+// Direct function to get hosting URL (no Firebase fallback)
+export const getHostingUrl = (surahId) => {
+  const formattedId = surahId.toString().padStart(3, '0');
+  const url = `${remoteAudioBaseUrl}surah_${formattedId}.mp3`;
+  console.log(`🌐 Direct hosting URL for surah ${surahId}: ${url}`);
+  return url;
+};
+
 // Get Firebase Storage URL for a surah
 export const getFirebaseStorageUrl = async (surahId) => {
   try {
-    // If Firebase is not available, use direct URL
+    // Always use direct URL from your hosting instead of Firebase
+    console.log(`📡 Using direct URL for surah ${surahId} (hosting: quran.adham-tech.com)`);
+    return getRemoteAudioUrl(surahId);
+    
+    // Firebase code is commented out to force using your hosting
+    /*
     if (!storage) {
       console.log(`📡 Using direct URL for surah ${surahId}`);
       return getRemoteAudioUrl(surahId);
@@ -67,10 +80,11 @@ export const getFirebaseStorageUrl = async (surahId) => {
     const fileRef = ref(storage, `quran_audio/${fileName}`);
     const url = await getDownloadURL(fileRef);
     return url;
+    */
   } catch (error) {
-    console.error(`Error getting Firebase URL for surah ${surahId}:`, error);
+    console.error(`Error getting URL for surah ${surahId}:`, error);
     console.log(`📡 Falling back to direct URL for surah ${surahId}`);
-    // Fallback to direct URL if Firebase fails
+    // Fallback to direct URL if anything fails
     return getRemoteAudioUrl(surahId);
   }
 };

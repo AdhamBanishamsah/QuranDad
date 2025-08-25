@@ -24,12 +24,11 @@ import {
   isSurahDownloaded,
   getLocalAudioPath,
   checkNetworkConnectivity,
-  getFirebaseStorageUrl,
   checkIfSurahDownloaded,
   getDownloadedSurahs,
   cancelCurrentDownload,
 } from '../utils/fileSystem';
-import { getRemoteAudioUrl } from '../utils/firebaseConfig';
+import { getRemoteAudioUrl, getFirebaseStorageUrl } from '../utils/firebaseConfig';
 import { testFirebaseConnection, testSurahUrl, getUploadStatus } from '../utils/testFirebase';
 import { getReadingMode, saveReadingMode } from '../utils/readingModeStorage';
 import audioManager from '../utils/audioManager';

@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { Alert, Platform, NetInfo } from 'react-native';
-import { getRemoteAudioUrl, getFirebaseStorageUrl } from './firebaseConfig';
+import { getRemoteAudioUrl, getHostingUrl } from './firebaseConfig';
 
 // Base directory for storing downloaded audio files
 const audioDirectory = FileSystem.documentDirectory + 'quran_audio/';
@@ -65,12 +65,13 @@ export const downloadSurah = async (surahId, url, onProgress, onComplete, onErro
       return filePath;
     }
     
-    // If no URL is provided, try to get it from Firebase
+    // If no URL is provided, use direct hosting URL
     if (!url) {
       try {
-        url = await getFirebaseStorageUrl(surahId);
+        url = getHostingUrl(surahId);
+        console.log(`🎵 Using hosting URL for surah ${surahId}: ${url}`);
       } catch (error) {
-        console.error('Failed to get Firebase URL:', error);
+        console.error('Failed to get hosting URL:', error);
         throw new Error('Could not retrieve audio file URL. Please try again later.');
       }
     }
