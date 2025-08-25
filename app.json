@@ -15,7 +15,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.adhambanishamsah.qurannizam",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "icon": "./assets/icons/Assets.xcassets/AppIcon.appiconset/1024.png",
       "infoPlist": {
         "UIBackgroundModes": [
@@ -23,10 +23,21 @@
         ],
         "NSMicrophoneUsageDescription": "This app needs access to microphone for audio playback controls.",
         "NSAppleMusicUsageDescription": "This app needs access to play audio in the background.",
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": false,
+          "NSExceptionDomains": {
+            "quran.adham-tech.com": {
+              "NSExceptionAllowsInsecureHTTPLoads": false,
+              "NSExceptionMinimumTLSVersion": "1.2",
+              "NSExceptionRequiresForwardSecrecy": true,
+              "NSIncludesSubdomains": true
+            }
+          }
+        },
         "CFBundleDisplayName": "القرآن بصوت نظام بني شمسة",
         "CFBundleName": "Quran by Nizam",
         "CFBundleShortVersionString": "1.0.0",
-        "CFBundleVersion": "2",
+        "CFBundleVersion": "3",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

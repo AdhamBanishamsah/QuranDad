@@ -31,12 +31,16 @@ class AudioManager {
 
       // Load new audio
       console.log(`🎵 Loading new surah ${surahId}`);
+      console.log(`🔗 Audio source: ${audioSource}`);
+      
       const { sound } = await Audio.Sound.createAsync(
         audioSource,
         {
           shouldPlay: true,
           staysActiveInBackground: true,
           progressUpdateIntervalMillis: 1000,
+          androidImplementation: 'MediaPlayer',
+          iosImplementation: 'AVPlayer',
         }
       );
 
@@ -69,8 +73,18 @@ class AudioManager {
       return sound;
 
     } catch (error) {
-      console.log('Error in playSurah:', error);
-      throw error;
+      console.log('❌ Error in playSurah:', error);
+      
+      // iOS-specific error handling
+      if (error.message && error.message.includes('Network')) {
+        throw new Error('Network error: Please check your internet connection and try again.');
+      } else if (error.message && error.message.includes('404')) {
+        throw new Error('Audio file not found. Please try again later.');
+      } else if (error.message && error.message.includes('403')) {
+        throw new Error('Access denied. Please check your network settings.');
+      }
+      
+      throw new Error('Failed to load audio. Please try again.');
     }
   }
 

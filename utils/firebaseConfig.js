@@ -43,12 +43,14 @@ if (hasFirebaseConfig) {
 }
 
 // Base URL for remote audio files
-const remoteAudioBaseUrl = 'https://qurannizam.firebasestorage.app/quran_audio/';
+const remoteAudioBaseUrl = 'https://quran.adham-tech.com/mp3_files/surahs/';
 
 // Get the remote URL for a surah
 export const getRemoteAudioUrl = (surahId) => {
   const formattedId = surahId.toString().padStart(3, '0');
-  return `${remoteAudioBaseUrl}surah_${formattedId}.mp3`;
+  const url = `${remoteAudioBaseUrl}surah_${formattedId}.mp3`;
+  console.log(`🔗 Generated URL for surah ${surahId}: ${url}`);
+  return url;
 };
 
 // Get Firebase Storage URL for a surah
