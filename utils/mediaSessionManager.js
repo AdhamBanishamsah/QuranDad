@@ -1,5 +1,4 @@
 import { Audio } from 'expo-av';
-import * as MediaLibrary from 'expo-media-library';
 
 class MediaSessionManager {
   constructor() {
@@ -15,13 +14,6 @@ class MediaSessionManager {
   // Initialize media session
   async initialize() {
     try {
-      // Request permissions
-      const { status } = await MediaLibrary.requestPermissionsAsync();
-      if (status !== 'granted') {
-        console.log('Media library permission not granted');
-        return;
-      }
-
       // Set up audio mode for background playback
       await Audio.setAudioModeAsync({
         allowsRecordingIOS: false,

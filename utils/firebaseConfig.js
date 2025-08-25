@@ -10,8 +10,13 @@ import {
   EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
 } from '@env';
 
+// Check if Firebase environment variables are available
+const hasFirebaseConfig = EXPO_PUBLIC_FIREBASE_API_KEY && 
+                         EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN && 
+                         EXPO_PUBLIC_FIREBASE_PROJECT_ID;
+
 // Firebase configuration - Use environment variables for security
-const firebaseConfig = {
+const firebaseConfig = hasFirebaseConfig ? {
   apiKey: EXPO_PUBLIC_FIREBASE_API_KEY,
   authDomain: EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
   projectId: EXPO_PUBLIC_FIREBASE_PROJECT_ID,
@@ -19,13 +24,23 @@ const firebaseConfig = {
   messagingSenderId: EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
   appId: EXPO_PUBLIC_FIREBASE_APP_ID,
   measurementId: EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID
-};
+} : null;
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
+// Initialize Firebase only if config is available
+let app = null;
+let storage = null;
 
-// Initialize Cloud Storage and get a reference to the service
-const storage = getStorage(app);
+if (hasFirebaseConfig) {
+  try {
+    app = initializeApp(firebaseConfig);
+    storage = getStorage(app);
+    console.log('✅ Firebase initialized successfully');
+  } catch (error) {
+    console.error('❌ Firebase initialization failed:', error);
+  }
+} else {
+  console.log('⚠️ Firebase environment variables not found, using direct URLs');
+}
 
 // Base URL for remote audio files
 const remoteAudioBaseUrl = 'https://qurannizam.firebasestorage.app/quran_audio/';
@@ -39,6 +54,12 @@ export const getRemoteAudioUrl = (surahId) => {
 // Get Firebase Storage URL for a surah
 export const getFirebaseStorageUrl = async (surahId) => {
   try {
+    // If Firebase is not available, use direct URL
+    if (!storage) {
+      console.log(`📡 Using direct URL for surah ${surahId}`);
+      return getRemoteAudioUrl(surahId);
+    }
+
     const formattedId = surahId.toString().padStart(3, '0');
     const fileName = `surah_${formattedId}.mp3`;
     const fileRef = ref(storage, `quran_audio/${fileName}`);
@@ -46,7 +67,9 @@ export const getFirebaseStorageUrl = async (surahId) => {
     return url;
   } catch (error) {
     console.error(`Error getting Firebase URL for surah ${surahId}:`, error);
-    throw error;
+    console.log(`📡 Falling back to direct URL for surah ${surahId}`);
+    // Fallback to direct URL if Firebase fails
+    return getRemoteAudioUrl(surahId);
   }
 };
 

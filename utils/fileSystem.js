@@ -1,8 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { Alert, Platform, NetInfo } from 'react-native';
-import { getRemoteAudioUrl } from './firebaseConfig';
-import { ref, getDownloadURL } from 'firebase/storage';
-import { storage } from './firebaseConfig';
+import { getRemoteAudioUrl, getFirebaseStorageUrl } from './firebaseConfig';
 
 // Base directory for storing downloaded audio files
 const audioDirectory = FileSystem.documentDirectory + 'quran_audio/';
@@ -43,19 +41,7 @@ export const checkNetworkConnectivity = async () => {
   }
 };
 
-// Get remote URL from Firebase Storage
-export const getFirebaseStorageUrl = async (surahId) => {
-  try {
-    const formattedId = surahId.toString().padStart(3, '0');
-    const storageRef = ref(storage, `quran_audio/surah_${formattedId}.mp3`);
-    const url = await getDownloadURL(storageRef);
-    return url;
-  } catch (error) {
-    console.error('Error getting Firebase storage URL:', error);
-    // Fallback to the predefined URL pattern if Firebase fails
-    return getRemoteAudioUrl(surahId);
-  }
-};
+
 
 // Global variable to store current download resumable
 let currentDownloadResumable = null;
