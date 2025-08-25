@@ -1,6 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { Alert, Platform, NetInfo } from 'react-native';
-import { getRemoteAudioUrl, getHostingUrl } from './firebaseConfig';
+import { getRemoteAudioUrl, getHostingUrl } from './hostingConfig';
 
 // Base directory for storing downloaded audio files
 const audioDirectory = FileSystem.documentDirectory + 'quran_audio/';

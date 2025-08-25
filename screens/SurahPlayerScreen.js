@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Audio } from 'expo-av';
-import { getFirebaseStorageUrl } from '../utils/firebaseConfig';
+import { getFirebaseStorageUrl } from '../utils/hostingConfig';
 import { checkIfSurahDownloaded, getLocalAudioPath } from '../utils/fileSystem';
 import { saveReadingMode, getReadingMode } from '../utils/readingModeStorage';
 import audioManager from '../utils/audioManager';

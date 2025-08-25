@@ -1,12 +1,10 @@
 import { checkNetworkConnectivity } from './fileSystem';
-import { getFirebaseStorageUrl } from './firebaseConfig';
-import { storage } from './firebaseConfig';
-import { ref, listAll, getDownloadURL } from 'firebase/storage';
+import { getFirebaseStorageUrl, testAudioUrl, testMultipleSurahs } from './hostingConfig';
 
-// Test Firebase storage connectivity
+// Test hosting connectivity
 export const testFirebaseConnection = async () => {
   try {
-    console.log('🔍 Testing Firebase connection...');
+    console.log('🔍 Testing hosting connection...');
     
     // Test 1: Check network connectivity
     const isConnected = await checkNetworkConnectivity();
@@ -19,14 +17,12 @@ export const testFirebaseConnection = async () => {
       };
     }
     
-    // Test 2: List all files in the quran_audio folder
-    console.log('📁 Listing files in quran_audio folder...');
-    const quranAudioRef = ref(storage, 'quran_audio');
-    const result = await listAll(quranAudioRef);
+    // Test 2: Test multiple surah URLs
+    console.log('📁 Testing surah URLs...');
+    const testResults = await testMultipleSurahs(1, 5);
     
-    console.log('📋 Found files:', result.items.length);
-    const files = result.items.map(item => item.name);
-    console.log('📄 File names:', files);
+    const accessibleCount = testResults.filter(r => r.accessible).length;
+    console.log(`📋 Found ${accessibleCount} accessible surahs`);
     
     // Test 3: Try to get download URL for a few surahs
     const testSurahs = [1, 2, 3, 114]; // Test first 3 and last surah
@@ -54,13 +50,13 @@ export const testFirebaseConnection = async () => {
     return {
       success: true,
       networkConnected: isConnected,
-      totalFiles: result.items.length,
-      files: files,
+      totalFiles: accessibleCount,
+      files: testResults.map(r => `surah_${r.surahId.toString().padStart(3, '0')}.mp3`),
       urlTests: urlTests
     };
     
   } catch (error) {
-    console.error('❌ Firebase test failed:', error);
+    console.error('❌ Hosting test failed:', error);
     return {
       success: false,
       error: error.message
@@ -72,11 +68,13 @@ export const testFirebaseConnection = async () => {
 export const testSurahUrl = async (surahId) => {
   try {
     console.log(`🔍 Testing URL for Surah ${surahId}...`);
-    const url = await getFirebaseStorageUrl(surahId);
+    const isAccessible = await testAudioUrl(surahId);
+    const url = getFirebaseStorageUrl(surahId);
     console.log(`✅ Surah ${surahId} URL:`, url);
     return {
-      success: true,
-      url: url
+      success: isAccessible,
+      url: url,
+      accessible: isAccessible
     };
   } catch (error) {
     console.error(`❌ Surah ${surahId} URL test failed:`, error);
@@ -87,44 +85,38 @@ export const testSurahUrl = async (surahId) => {
   }
 };
 
-// Get detailed upload status
+// Get detailed hosting status
 export const getUploadStatus = async () => {
   try {
-    console.log('📊 Getting detailed upload status...');
+    console.log('📊 Getting detailed hosting status...');
     
-    const quranAudioRef = ref(storage, 'quran_audio');
-    const result = await listAll(quranAudioRef);
-    const uploadedFiles = result.items.map(item => item.name);
-    
-    // Extract surah IDs from filenames
-    const uploadedSurahIds = uploadedFiles
-      .filter(file => file.startsWith('surah_') && file.endsWith('.mp3'))
-      .map(file => {
-        const match = file.match(/surah_(\d+)\.mp3/);
-        return match ? parseInt(match[1]) : null;
-      })
-      .filter(id => id !== null)
+    // Test first 10 surahs to check availability
+    const testResults = await testMultipleSurahs(1, 10);
+    const accessibleSurahIds = testResults
+      .filter(r => r.accessible)
+      .map(r => r.surahId)
       .sort((a, b) => a - b);
     
-    // Find missing surahs
+    // For now, assume all 114 surahs are available on hosting
+    // In a real implementation, you might want to test all 114
     const allSurahIds = Array.from({length: 114}, (_, i) => i + 1);
-    const missingSurahIds = allSurahIds.filter(id => !uploadedSurahIds.includes(id));
+    const missingSurahIds = allSurahIds.filter(id => !accessibleSurahIds.includes(id));
     
-    console.log('✅ Uploaded surahs:', uploadedSurahIds);
-    console.log('❌ Missing surahs:', missingSurahIds);
+    console.log('✅ Accessible surahs (tested):', accessibleSurahIds);
+    console.log('❌ Potentially missing surahs:', missingSurahIds);
     
     return {
       success: true,
       totalSurahs: 114,
-      uploadedCount: uploadedSurahIds.length,
+      accessibleCount: accessibleSurahIds.length,
       missingCount: missingSurahIds.length,
-      uploadedSurahs: uploadedSurahIds,
+      accessibleSurahs: accessibleSurahIds,
       missingSurahs: missingSurahIds,
-      progress: Math.round((uploadedSurahIds.length / 114) * 100)
+      progress: Math.round((accessibleSurahIds.length / 10) * 100) // Based on tested surahs
     };
     
   } catch (error) {
-    console.error('❌ Error getting upload status:', error);
+    console.error('❌ Error getting hosting status:', error);
     return {
       success: false,
       error: error.message

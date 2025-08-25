@@ -28,7 +28,7 @@ import {
   getDownloadedSurahs,
   cancelCurrentDownload,
 } from '../utils/fileSystem';
-import { getRemoteAudioUrl, getFirebaseStorageUrl } from '../utils/firebaseConfig';
+import { getRemoteAudioUrl, getFirebaseStorageUrl } from '../utils/hostingConfig';
 import { testFirebaseConnection, testSurahUrl, getUploadStatus } from '../utils/testFirebase';
 import { getReadingMode, saveReadingMode } from '../utils/readingModeStorage';
 import audioManager from '../utils/audioManager';
