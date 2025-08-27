@@ -53,14 +53,14 @@ class MediaSessionManager {
   setNowPlayingInfo(info) {
     // This would typically use a native module for iOS
     // For now, we'll log the info that would be sent to iOS
-    console.log('🎵 Now Playing Info:', {
-      title: info.title,
-      artist: info.artist,
-      album: info.album,
-      duration: info.duration,
-      currentTime: info.currentTime,
-      isPlaying: info.isPlaying,
-    });
+    // console.log('🎵 Now Playing Info:', {
+    //   title: info.title,
+    //   artist: info.artist,
+    //   album: info.album,
+    //   duration: info.duration,
+    //   currentTime: info.currentTime,
+    //   isPlaying: info.isPlaying,
+    // });
   }
 
   // Handle media control events

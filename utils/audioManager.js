@@ -130,11 +130,15 @@ class AudioManager {
 
   // Get current state for floating player
   getCurrentState() {
+    const lastStatus = this.currentSound?._lastStatusUpdateEvent;
+    const positionMillis = lastStatus?.positionMillis || 0;
+    const durationMillis = lastStatus?.durationMillis || 0;
+    
     return {
       currentSurahId: this.currentSurahId,
       isPlaying: this.isPlaying,
-      currentTime: this.currentSound ? this.currentSound._lastStatusUpdateEvent?.positionMillis / 1000 : 0,
-      duration: this.currentSound ? this.currentSound._lastStatusUpdateEvent?.durationMillis / 1000 : 0,
+      currentTime: isNaN(positionMillis) ? 0 : positionMillis / 1000,
+      duration: isNaN(durationMillis) ? 0 : durationMillis / 1000,
     };
   }
 
@@ -167,7 +171,7 @@ class AudioManager {
   // Set reading mode
   setReadingMode(mode) {
     this.readingMode = mode;
-    console.log(`📖 Reading mode set to: ${mode}`);
+    // console.log(`📖 Reading mode set to: ${mode}`);
   }
 
   // Get reading mode
@@ -183,11 +187,14 @@ class AudioManager {
       // Update media session for lock screen controls
       const currentSurah = this.getCurrentSurah();
       if (currentSurah) {
+        const position = status.positionMillis || 0;
+        const duration = status.durationMillis || 0;
+        
         mediaSessionManager.updateMediaSession(
           currentSurah,
           status.isPlaying,
-          status.positionMillis / 1000,
-          status.durationMillis / 1000
+          isNaN(position) ? 0 : position / 1000,
+          isNaN(duration) ? 0 : duration / 1000
         );
       }
 

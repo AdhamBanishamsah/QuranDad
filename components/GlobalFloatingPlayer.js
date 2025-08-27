@@ -209,6 +209,52 @@ const GlobalFloatingPlayer = ({ navigation }) => {
     }
   };
 
+  const handleNextTrack = async () => {
+    try {
+      if (!surah) return;
+      
+      // Calculate next surah ID with wrapping
+      const nextSurahId = surah.id === 114 ? 1 : surah.id + 1;
+      const nextSurah = surahs.find(s => s.id === nextSurahId);
+      
+      if (nextSurah) {
+        console.log(`⏭️ Next track: ${surah.arabicNameSimple} → ${nextSurah.arabicNameSimple}`);
+        
+        // Stop current audio and navigate to next surah
+        await audioManager.stopCurrentAudio();
+        navigation.navigate('SurahPlayer', { 
+          surah: nextSurah,
+          transition: 'slideLeft'
+        });
+      }
+    } catch (error) {
+      console.log('Error in handleNextTrack:', error);
+    }
+  };
+
+  const handlePreviousTrack = async () => {
+    try {
+      if (!surah) return;
+      
+      // Calculate previous surah ID with wrapping
+      const previousSurahId = surah.id === 1 ? 114 : surah.id - 1;
+      const previousSurah = surahs.find(s => s.id === previousSurahId);
+      
+      if (previousSurah) {
+        console.log(`⏮️ Previous track: ${surah.arabicNameSimple} → ${previousSurah.arabicNameSimple}`);
+        
+        // Stop current audio and navigate to previous surah
+        await audioManager.stopCurrentAudio();
+        navigation.navigate('SurahPlayer', { 
+          surah: previousSurah,
+          transition: 'slideRight'
+        });
+      }
+    } catch (error) {
+      console.log('Error in handlePreviousTrack:', error);
+    }
+  };
+
   const handlePress = () => {
     if (surah) {
       navigation.navigate('SurahPlayer', { surah });
@@ -217,9 +263,16 @@ const GlobalFloatingPlayer = ({ navigation }) => {
 
   if (!isVisible || !surah) return null;
 
-  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressPercentage = (duration > 0 && currentTime >= 0 && !isNaN(currentTime) && !isNaN(duration)) 
+    ? Math.min((currentTime / duration) * 100, 100) 
+    : 0;
 
   const formatTime = (seconds) => {
+    // Handle NaN, undefined, or negative values
+    if (!seconds || isNaN(seconds) || seconds < 0) {
+      return '0:00';
+    }
+    
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -260,18 +313,24 @@ const GlobalFloatingPlayer = ({ navigation }) => {
 
         {/* Playback Controls */}
         <View style={styles.controlsContainer}>
+          <TouchableOpacity style={styles.controlButton} onPress={handlePreviousTrack}>
+            <Ionicons name="play-skip-back" size={18} color="#666" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.controlButton} onPress={handleSkipBackward}>
-            <Ionicons name="play-skip-back" size={20} color="#666" />
+            <Ionicons name="play-back" size={16} color="#666" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
             <Ionicons 
               name={isPlaying ? "pause" : "play"} 
-              size={24} 
+              size={20} 
               color="#666" 
             />
           </TouchableOpacity>
           <TouchableOpacity style={styles.controlButton} onPress={handleSkipForward}>
-            <Ionicons name="play-skip-forward" size={20} color="#666" />
+            <Ionicons name="play-forward" size={16} color="#666" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.controlButton} onPress={handleNextTrack}>
+            <Ionicons name="play-skip-forward" size={18} color="#666" />
           </TouchableOpacity>
         </View>
 
@@ -361,13 +420,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 12,
+    gap: 4,
   },
   controlButton: {
-    padding: 8,
+    padding: 4,
   },
   playButton: {
-    padding: 8,
-    marginHorizontal: 8,
+    padding: 6,
+    marginHorizontal: 4,
   },
   audioOutputIcon: {
     marginLeft: 8,

@@ -181,6 +181,10 @@ const SurahPlayerScreen = ({ route, navigation }) => {
       loadAudio();
     }
 
+    // Debug: Log initial state
+    console.log(`🎵 SurahPlayer initialized for surah ${surah.id} (${surah.arabicNameSimple})`);
+    console.log(`📊 Initial state - Current time: ${currentTime}s, Duration: ${duration}s, Playing: ${isPlaying}`);
+
     // Don't stop audio when leaving screen - let it continue playing
     return () => {
       // Only cleanup if component is unmounting completely (not just navigating away)
@@ -188,6 +192,13 @@ const SurahPlayerScreen = ({ route, navigation }) => {
       console.log('🎵 Audio continues playing in background');
     };
   }, []);
+
+  // Debug: Monitor timeline changes (commented out to reduce logs)
+  // useEffect(() => {
+  //   if (currentTime > 0 || duration > 0) {
+  //     console.log(`⏱️ Timeline Update - Current: ${currentTime.toFixed(1)}s, Duration: ${duration.toFixed(1)}s, Progress: ${progressPercentage.toFixed(1)}%`);
+  //   }
+  // }, [currentTime, duration, progressPercentage]);
 
   // Wave animation function
   const startWaveAnimation = () => {
@@ -217,11 +228,19 @@ const SurahPlayerScreen = ({ route, navigation }) => {
   };
 
   const stopWaveAnimation = () => {
+    // Stop animations but keep the wave container visible
     wave1Anim.stopAnimation();
     wave2Anim.stopAnimation();
     wave3Anim.stopAnimation();
     wave4Anim.stopAnimation();
     wave5Anim.stopAnimation();
+    
+    // Reset to default heights
+    wave1Anim.setValue(8);
+    wave2Anim.setValue(12);
+    wave3Anim.setValue(18);
+    wave4Anim.setValue(12);
+    wave5Anim.setValue(8);
   };
 
     // Audio playback functions
@@ -291,8 +310,20 @@ const SurahPlayerScreen = ({ route, navigation }) => {
   const onPlaybackStatusUpdate = (status) => {
     if (status.isLoaded) {
       setIsPlaying(status.isPlaying);
-      setCurrentTime(status.positionMillis / 1000);
-      setDuration(status.durationMillis / 1000);
+      
+      // Fix NaN issues by ensuring values are valid numbers
+      const position = status.positionMillis || 0;
+      const durationMillis = status.durationMillis || 0;
+      
+      // Convert milliseconds to seconds and ensure they're valid numbers
+      const currentTimeSeconds = isNaN(position) ? 0 : position / 1000;
+      const durationSeconds = isNaN(durationMillis) ? 0 : durationMillis / 1000;
+      
+      setCurrentTime(currentTimeSeconds);
+      setDuration(durationSeconds);
+      
+      // Only log significant events, not every second update
+      // console.log(`🎵 Playback Update - Position: ${currentTimeSeconds.toFixed(1)}s, Duration: ${durationSeconds.toFixed(1)}s, Playing: ${status.isPlaying}`);
     }
   };
 
@@ -306,6 +337,7 @@ const SurahPlayerScreen = ({ route, navigation }) => {
         // If currently playing, pause it
         await sound.pauseAsync();
         stopWaveAnimation();
+        console.log('⏸️ Audio paused - waves stopped, container remains visible');
       } else {
         // If paused or stopped, start playing
         // If we're at the end of the audio, restart from beginning
@@ -314,6 +346,7 @@ const SurahPlayerScreen = ({ route, navigation }) => {
         }
         await sound.playAsync();
         startWaveAnimation();
+        console.log('▶️ Audio playing - waves animated, container remains visible');
       }
     } catch (error) {
       console.log('Error in handlePlayPause:', error);
@@ -337,6 +370,74 @@ const SurahPlayerScreen = ({ route, navigation }) => {
       await sound.setPositionAsync(newPosition * 1000);
     } catch (error) {
       console.log('Error in handleSkipBackward:', error);
+    }
+  };
+
+  const handleSeek = async (event) => {
+    if (!sound || duration <= 0) return;
+    
+    try {
+      const { locationX } = event.nativeEvent;
+      const progressBarWidth = event.target.measure((x, y, width, height) => {
+        const seekPercentage = locationX / width;
+        const seekTime = seekPercentage * duration;
+        const clampedTime = Math.max(0, Math.min(seekTime, duration));
+        
+        sound.setPositionAsync(clampedTime * 1000);
+        console.log(`🎯 Seeking to ${clampedTime.toFixed(1)}s (${(seekPercentage * 100).toFixed(1)}%)`);
+      });
+    } catch (error) {
+      console.log('Error in handleSeek:', error);
+    }
+  };
+
+  const handleNextTrack = async () => {
+    try {
+      // Calculate next surah ID with wrapping
+      const nextSurahId = surah.id === 114 ? 1 : surah.id + 1;
+      const nextSurah = surahs.find(s => s.id === nextSurahId);
+      
+      if (nextSurah) {
+        console.log(`⏭️ Next track: ${surah.arabicNameSimple} → ${nextSurah.arabicNameSimple}`);
+        
+        // Stop current audio and navigate to next surah
+        if (sound) {
+          await sound.stopAsync();
+        }
+        
+        // Navigate to next surah with custom transition
+        navigation.replace('SurahPlayer', { 
+          surah: nextSurah,
+          transition: 'slideLeft'
+        });
+      }
+    } catch (error) {
+      console.log('Error in handleNextTrack:', error);
+    }
+  };
+
+  const handlePreviousTrack = async () => {
+    try {
+      // Calculate previous surah ID with wrapping
+      const previousSurahId = surah.id === 1 ? 114 : surah.id - 1;
+      const previousSurah = surahs.find(s => s.id === previousSurahId);
+      
+      if (previousSurah) {
+        console.log(`⏮️ Previous track: ${surah.arabicNameSimple} → ${previousSurah.arabicNameSimple}`);
+        
+        // Stop current audio and navigate to previous surah
+        if (sound) {
+          await sound.stopAsync();
+        }
+        
+        // Navigate to previous surah with custom transition
+        navigation.replace('SurahPlayer', { 
+          surah: previousSurah,
+          transition: 'slideRight'
+        });
+      }
+    } catch (error) {
+      console.log('Error in handlePreviousTrack:', error);
     }
   };
 
@@ -375,12 +476,19 @@ const SurahPlayerScreen = ({ route, navigation }) => {
   };
 
   const formatTime = (seconds) => {
+    // Handle NaN, undefined, or negative values
+    if (!seconds || isNaN(seconds) || seconds < 0) {
+      return '0:00';
+    }
+    
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressPercentage = (duration > 0 && currentTime >= 0 && !isNaN(currentTime) && !isNaN(duration)) 
+    ? Math.min((currentTime / duration) * 100, 100) 
+    : 0;
 
   return (
     <View style={styles.container}>
@@ -391,25 +499,24 @@ const SurahPlayerScreen = ({ route, navigation }) => {
         resizeMode="cover"
       >
         <View style={styles.overlay}>
-          {/* Header */}
-                           <View style={styles.header}>
-                   <TouchableOpacity
-                     style={styles.backButton}
-                     onPress={() => {
-                       // Let audio continue playing when going back
-                       console.log('🎵 Audio continues playing when navigating back');
-                       navigation.goBack();
-                     }}
-                   >
-                     <View style={styles.backButtonContainer}>
-                       <Ionicons name="chevron-back" size={24} color="#ffffff" />
-                     </View>
-                   </TouchableOpacity>
+                    {/* Header */}
+          <View style={styles.header}>
+            <View style={styles.placeholder} />
             <View style={styles.headerCenter}>
               <Text style={styles.headerTitle}>مشغل السورة</Text>
-              
             </View>
-            <View style={styles.placeholder} />
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                // Let audio continue playing when going back
+                console.log('🎵 Audio continues playing when navigating back');
+                navigation.goBack();
+              }}
+            >
+              <View style={styles.backButtonContainer}>
+                <Text style={styles.backButtonText}>→</Text>
+              </View>
+            </TouchableOpacity>
           </View>
 
           {/* Surah Info */}
@@ -417,7 +524,7 @@ const SurahPlayerScreen = ({ route, navigation }) => {
             
             <View style={styles.surahDetails}>
               <Text style={styles.surahName}>{surah.arabicName}</Text>
-              <Text style={styles.surahNameSimple}>{surah.arabicNameSimple}</Text>
+              <Text style={styles.surahNameSimple}> </Text>
               <View style={styles.surahMeta}>
                 <View style={styles.metaItem}>
                   <Ionicons name="book-outline" size={14} color="rgba(255, 255, 255, 0.7)" />
@@ -439,42 +546,105 @@ const SurahPlayerScreen = ({ route, navigation }) => {
           <View style={styles.playerCard}>
             {/* Progress Bar */}
             <View style={styles.progressContainer}>
-              <View style={styles.audioProgressBar}>
+              <TouchableOpacity 
+                style={styles.audioProgressBar}
+                onPress={handleSeek}
+                activeOpacity={0.8}
+              >
                 <View style={[styles.progressFill, { width: `${progressPercentage}%` }]} />
-                <View style={styles.progressThumb} />
-              </View>
+                <View style={[styles.progressThumb, { left: `${progressPercentage}%` }]} />
+              </TouchableOpacity>
               <View style={styles.timeContainer}>
                 <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
                 <Text style={styles.timeText}>{formatTime(duration)}</Text>
               </View>
             </View>
 
-            {/* Wave Animation */}
-            {isPlaying && (
-              <View style={styles.waveContainer}>
-                <Animated.View style={[styles.wave, { height: wave1Anim }]} />
-                <Animated.View style={[styles.wave, { height: wave2Anim }]} />
-                <Animated.View style={[styles.wave, { height: wave3Anim }]} />
-                <Animated.View style={[styles.wave, { height: wave4Anim }]} />
-                <Animated.View style={[styles.wave, { height: wave5Anim }]} />
-                <Animated.View style={[styles.wave, { height: wave2Anim }]} />
-                <Animated.View style={[styles.wave, { height: wave1Anim }]} />
-              </View>
-            )}
+            {/* Wave Animation - Always visible to maintain layout */}
+            <View style={styles.waveContainer}>
+              <Animated.View style={[
+                styles.wave, 
+                { 
+                  height: isPlaying ? wave1Anim : 8,
+                  opacity: isPlaying ? 1 : 0.6
+                }
+              ]} />
+              <Animated.View style={[
+                styles.wave, 
+                { 
+                  height: isPlaying ? wave2Anim : 12,
+                  opacity: isPlaying ? 1 : 0.6
+                }
+              ]} />
+              <Animated.View style={[
+                styles.wave, 
+                { 
+                  height: isPlaying ? wave3Anim : 18,
+                  opacity: isPlaying ? 1 : 0.6
+                }
+              ]} />
+              <Animated.View style={[
+                styles.wave, 
+                { 
+                  height: isPlaying ? wave4Anim : 12,
+                  opacity: isPlaying ? 1 : 0.6
+                }
+              ]} />
+              <Animated.View style={[
+                styles.wave, 
+                { 
+                  height: isPlaying ? wave5Anim : 8,
+                  opacity: isPlaying ? 1 : 0.6
+                }
+              ]} />
+              <Animated.View style={[
+                styles.wave, 
+                { 
+                  height: isPlaying ? wave2Anim : 12,
+                  opacity: isPlaying ? 1 : 0.6
+                }
+              ]} />
+              <Animated.View style={[
+                styles.wave, 
+                { 
+                  height: isPlaying ? wave1Anim : 8,
+                  opacity: isPlaying ? 1 : 0.6
+                }
+              ]} />
+            </View>
 
             {/* Controls */}
             <View style={styles.controlsContainer}>
+              {/* Previous Track */}
+              <TouchableOpacity style={styles.trackButton} onPress={handlePreviousTrack}>
+                <View style={styles.trackButtonInner}>
+                  <Ionicons name="play-skip-back" size={24} color="#ffffff" />
+                </View>
+              </TouchableOpacity>
+              
+              {/* Skip Backward */}
               <TouchableOpacity style={styles.controlButton} onPress={handleSkipBackward}>
                 <View style={styles.controlButtonInner}>
                   <Ionicons name="play-back" size={20} color="#ffffff" />
                 </View>
               </TouchableOpacity>
+              
+              {/* Play/Pause */}
               <TouchableOpacity style={styles.playButton} onPress={handlePlayPause}>
                 <Ionicons name={isPlaying ? "pause" : "play"} size={36} color="#ffffff" />
               </TouchableOpacity>
+              
+              {/* Skip Forward */}
               <TouchableOpacity style={styles.controlButton} onPress={handleSkipForward}>
                 <View style={styles.controlButtonInner}>
                   <Ionicons name="play-forward" size={20} color="#ffffff" />
+                </View>
+              </TouchableOpacity>
+              
+              {/* Next Track */}
+              <TouchableOpacity style={styles.trackButton} onPress={handleNextTrack}>
+                <View style={styles.trackButtonInner}>
+                  <Ionicons name="play-skip-forward" size={24} color="#ffffff" />
                 </View>
               </TouchableOpacity>
             </View>
@@ -573,11 +743,17 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'transparent',
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  backButtonText: {
+    fontSize: 28,
+    color: '#ffffff',
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(255, 255, 255, 0.3)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   headerCenter: {
     alignItems: 'center',
@@ -688,7 +864,6 @@ const styles = StyleSheet.create({
   },
   progressThumb: {
     position: 'absolute',
-    right: -4,
     top: -2,
     width: 12,
     height: 12,
@@ -696,6 +871,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#e94560',
     borderWidth: 2,
     borderColor: '#ffffff',
+    transform: [{ translateX: -6 }], // Center the thumb on the progress line
   },
   timeContainer: {
     flexDirection: 'row',
@@ -711,13 +887,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 30,
+    gap: 0,
   },
   controlButton: {
-    padding: 12,
+    padding: 8,
   },
   controlButtonInner: {
-    width: 50,
-    height: 50,
+    width: 20,
+    height: 20,
     borderRadius: 25,
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     alignItems: 'center',
@@ -725,11 +902,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255, 255, 255, 0.2)',
   },
+  trackButton: {
+    padding: 6,
+  },
+  trackButtonInner: {
+    width: 45,
+    height: 45,
+    borderRadius: 22.5,
+    backgroundColor: 'rgba(233, 69, 96, 0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(233, 69, 96, 0.4)',
+  },
   playButton: {
     backgroundColor: '#e94560',
-    padding: 25,
-    borderRadius: 40,
-    marginHorizontal: 40,
+    padding: 20,
+    borderRadius: 35,
+    marginHorizontal: 20,
     shadowColor: '#e94560',
     shadowOffset: {
       width: 0,
@@ -745,12 +935,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     marginBottom: 30,
     height: 50,
+    minHeight: 50, // Ensure consistent height
   },
   wave: {
     width: 3,
     backgroundColor: '#e94560',
     marginHorizontal: 2,
     borderRadius: 2,
+    minHeight: 8, // Minimum height when paused
   },
   readingModeContainer: {
     marginBottom: 10,

@@ -20,14 +20,23 @@ const FloatingMediaPlayer = ({
   onPlayPause,
   onSkipForward,
   onSkipBackward,
+  onNextTrack,
+  onPreviousTrack,
   onPress,
   style,
 }) => {
   if (!isVisible || !surah) return null;
 
-  const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+  const progressPercentage = (duration > 0 && currentTime >= 0 && !isNaN(currentTime) && !isNaN(duration)) 
+    ? Math.min((currentTime / duration) * 100, 100) 
+    : 0;
 
   const formatTime = (seconds) => {
+    // Handle NaN, undefined, or negative values
+    if (!seconds || isNaN(seconds) || seconds < 0) {
+      return '0:00';
+    }
+    
     const mins = Math.floor(seconds / 60);
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
@@ -68,18 +77,24 @@ const FloatingMediaPlayer = ({
 
         {/* Playback Controls */}
         <View style={styles.controlsContainer}>
+          <TouchableOpacity style={styles.controlButton} onPress={onPreviousTrack}>
+            <Ionicons name="play-skip-back" size={18} color="#666" />
+          </TouchableOpacity>
           <TouchableOpacity style={styles.controlButton} onPress={onSkipBackward}>
-            <Ionicons name="play-skip-back" size={20} color="#666" />
+            <Ionicons name="play-back" size={16} color="#666" />
           </TouchableOpacity>
           <TouchableOpacity style={styles.playButton} onPress={onPlayPause}>
             <Ionicons 
               name={isPlaying ? "pause" : "play"} 
-              size={24} 
+              size={20} 
               color="#666" 
             />
           </TouchableOpacity>
           <TouchableOpacity style={styles.controlButton} onPress={onSkipForward}>
-            <Ionicons name="play-skip-forward" size={20} color="#666" />
+            <Ionicons name="play-forward" size={16} color="#666" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.controlButton} onPress={onNextTrack}>
+            <Ionicons name="play-skip-forward" size={18} color="#666" />
           </TouchableOpacity>
         </View>
 
@@ -169,13 +184,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     marginLeft: 12,
+    gap: 4,
   },
   controlButton: {
-    padding: 8,
+    padding: 4,
   },
   playButton: {
-    padding: 8,
-    marginHorizontal: 8,
+    padding: 6,
+    marginHorizontal: 4,
   },
   audioOutputIcon: {
     marginLeft: 8,

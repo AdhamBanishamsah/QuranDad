@@ -1198,7 +1198,14 @@ const QuranListScreen = ({ navigation }) => {
           <View style={styles.header}>
             <View style={styles.placeholder} />
             <Text style={styles.headerTitle}>فهرس السور</Text>
-            <View style={styles.placeholder} />
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => navigation.goBack()}
+            >
+              <View style={styles.backButtonContainer}>
+                <Text style={styles.backButtonText}>→</Text>
+              </View>
+            </TouchableOpacity>
         </View>
 
         {/* Search Bar */}
@@ -1320,9 +1327,23 @@ const styles = StyleSheet.create({
     paddingBottom: 20,
   },
   backButton: {
-    fontSize: 24,
+    padding: 8,
+  },
+  backButtonContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  backButtonText: {
+    fontSize: 28,
     color: '#ffffff',
     fontWeight: 'bold',
+    textShadowColor: 'rgba(255, 255, 255, 0.3)',
+    textShadowOffset: { width: 0, height: 0 },
+    textShadowRadius: 8,
   },
   headerTitle: {
     fontSize: 20,
