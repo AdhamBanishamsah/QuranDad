@@ -86,7 +86,7 @@
 
 ## 10. Age Rating
 
-**Target Age Group:** 4+
+**Target Age Group:** 4+ (All Ages)
 
 **Content Descriptors:** 
 - No violence
@@ -96,6 +96,35 @@
 - No alcohol/drug references
 
 **Age Rating:** 4+ (Everyone)
+
+**IMPORTANT:** This app is NOT designed specifically for children under 12. It is designed for all ages (4+). Do NOT select "Made for Kids" or "Kids Category" in App Store Connect.
+
+---
+
+## 🔧 App Store Connect Configuration
+
+**CRITICAL SETTINGS TO FIX THE KIDS CATEGORY ISSUE:**
+
+### 1. Age Rating Settings
+- Go to **App Store Connect** → Your App → **App Information**
+- Click on **"Age Rating"** section
+- Set **"Made for Kids"** to **NO** (this is the key fix!)
+- Complete the age rating questionnaire for **4+ (Everyone)**
+- Do NOT select "Kids Category" anywhere
+
+### 2. App Categories
+- Primary Category: **Education**
+- Secondary Category: **Lifestyle**
+- Do NOT select "Kids" as any category
+
+### 3. Content Rights
+- Confirm you have rights to distribute Quran audio content
+- This is a religious/educational app for all ages, not specifically for children
+
+### 4. App Review Information
+- Clearly state this is a Quran recitation app for all ages
+- Emphasize it's educational and religious content
+- Mention it's suitable for families but not specifically designed for children under 12
 
 ---
 

@@ -126,6 +126,8 @@
 
 **Target Audience:** All ages (4+)
 
+**IMPORTANT:** This app is designed for all ages (4+), not specifically for children under 12. Do NOT select "Designed for Families" or "Kids" category in Google Play Console.
+
 ## 6. Release Information
 
 **App Version:** 1.0.0
